@@ -246,10 +246,8 @@ def security_event(ctx: Context, node_input: str) -> Event:
     yield Event(output=err_msg)
 
 
-async def human_approval(ctx: Context, node_input: types.Content) -> AsyncGenerator[Event, None]:
-    plan_text = ""
-    if node_input and node_input.parts:
-        plan_text = "".join(p.text for p in node_input.parts if p.text)
+async def human_approval(ctx: Context, node_input: str) -> AsyncGenerator[Event, None]:
+    plan_text = node_input
         
     if not ctx.resume_inputs or "user_approval" not in ctx.resume_inputs:
         plan_summary = (
