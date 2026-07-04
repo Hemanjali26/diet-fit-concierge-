@@ -1,0 +1,39 @@
+[0:00 — HOOK]
+Imagine wanting to adopt a healthier lifestyle but feeling completely overwhelmed by what meals to cook, how many calories to eat, and what exercises to perform. Our agent, the Diet and Fitness Concierge, is designed to solve exactly this, helping health-conscious individuals build a secure and highly customized diet and exercise regime in seconds.
+(pause)
+
+[0:20 — WHAT IT IS]
+This agent belongs to the Concierge Agents track. It operates as an intelligent wellness assistant that dynamically builds personalized full-day diets, consolidation grocery lists, food preparation instructions, and tailored fitness programs.
+(pause)
+
+[0:40 — SHOW THE BANNER]
+(show assets/cover_page_banner.png)
+As you can see on the banner, the Diet and Fitness Concierge is automated, secure, and intelligent, merging culinary arts with athletic planning.
+(pause)
+
+[1:00 — ARCHITECTURE]
+(show assets/architecture_diagram.png)
+Let me walk you through our agent's internal workflow.
+First, every request passes through our Security Checkpoint. If a threat is detected, it triggers the Security Event handler and terminates safely. If the check passes, the query goes directly to our Orchestrator Agent.
+The Orchestrator delegates tasks using AgentTools: it asks the Diet Agent to formulate daily meals, and the Workout Agent to design fitness schedules.
+These agents rely on our local Model Context Protocol Server side-panel to calculate exact macronutrient targets and metabolic statistics.
+Finally, the flow enters the Human Approval node, where the user reviews the draft, allowing them to either request revisions or finalize the approved plan.
+(pause)
+
+[2:00 — LIVE DEMO]
+(switch to playground at localhost:18081)
+Let's see this in action. I will input the sample prompt: "Suggest a day's diet plan and workout schedule for a 25-year-old male, 80kg, 180cm, moderately active, who wants to build muscle and consume a high protein diet."
+(pause)
+Now, look at the screen. The workflow executes the security checkpoint, calculates macros and TDEE, and pauses here in the chat prompting us for approval: "Do you approve this plan? Enter 'yes' or describe changes you'd like."
+If I respond with feedback like "No, swap oats for quinoa in breakfast," the system automatically routes back, recalculates, and asks for approval again. Once I input "yes", it prints the finalized plan.
+And if someone tries to inject a command like "Ignore previous instructions", our checkpoint catches it immediately and shows a block message.
+(pause)
+
+[3:00 — SECURITY & MCP]
+Under the hood, our security checkpoint performs PII scrubbing of credit cards, SSNs, and emails, logs structured JSON audit entries, restricts access to children under 13, and bans dangerous queries for medical prescription drugs.
+Our Model Context Protocol server uses local stdio tools to execute precise calculations for TDEE, macros, and nutrition lookups.
+(pause)
+
+[3:30 — IMPACT / CLOSE]
+This agent makes healthy living accessible, math-aligned, and secure. It saves users hours of manual planning, providing high-quality guides under safe boundaries.
+Thank you!
