@@ -21,6 +21,7 @@ from typing import AsyncGenerator
 from pydantic import BaseModel, Field
 
 from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App, ResumabilityConfig
 from google.adk.models import Gemini
 from google.adk.tools import AgentTool
@@ -66,6 +67,7 @@ class DietFitState(BaseModel):
     is_approved: bool = False
     security_passed: bool = True
     audit_log: list[dict] = []
+    plan: dict | None = None
 
 class DietPlanOutput(BaseModel):
     diet_plan: str = Field(description="Full day diet plan (breakfast, lunch, dinner, snacks)")
@@ -108,6 +110,12 @@ You have access to an MCP tool to calculate the user's BMI and TDEE (maintenance
     description="Designs a personalized workout schedule based on user fitness goals and constraints.",
 )
 
+async def init_orchestrator_state(callback_context: CallbackContext) -> None:
+    if "user_query" not in callback_context.state:
+        callback_context.state["user_query"] = ""
+    if "feedback" not in callback_context.state:
+        callback_context.state["feedback"] = ""
+
 # --- ORCHESTRATOR AGENT ---
 orchestrator_agent = LlmAgent(
     name="orchestrator_agent",
@@ -128,6 +136,7 @@ Make sure you do not invent the plans yourself; always delegate to the respectiv
     tools=[AgentTool(diet_agent), AgentTool(workout_agent)],
     output_schema=OrchestratorOutput,
     output_key="plan",
+    before_agent_callback=init_orchestrator_state,
 )
 
 # --- WORKFLOW FUNCTIONS ---
