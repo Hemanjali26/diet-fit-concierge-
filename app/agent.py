@@ -131,11 +131,16 @@ If there is previous feedback, make sure you address it in the updated plan.
 First, call the 'diet_agent' tool to get the full-day diet plan, grocery list, and meal preparation steps.
 Second, call the 'workout_agent' tool to get the workout schedule.
 
-Once you have gathered the outputs from both sub-agents, combine and present them as a cohesive plan matching the output schema.
+Once you have gathered the outputs from both sub-agents, combine and present them as a beautiful, cohesive, and comprehensive health and fitness plan in Markdown format, containing:
+1. Diet Plan (breakfast, lunch, dinner, snacks)
+2. Consolidated Grocery List
+3. Meal Prep Instructions
+4. Workout Schedule
+5. Summary
+
 Make sure you do not invent the plans yourself; always delegate to the respective agents using your tools.""",
     tools=[AgentTool(diet_agent), AgentTool(workout_agent)],
-    output_schema=OrchestratorOutput,
-    output_key="plan",
+    output_key="diet_plan",
     before_agent_callback=init_orchestrator_state,
 )
 
@@ -243,17 +248,15 @@ def security_event(ctx: Context, node_input: str) -> Event:
     yield Event(output=err_msg)
 
 
-async def human_approval(ctx: Context, node_input: dict) -> AsyncGenerator[Event, None]:
-    plan = OrchestratorOutput(**node_input)
-    
+async def human_approval(ctx: Context, node_input: types.Content) -> AsyncGenerator[Event, None]:
+    plan_text = ""
+    if node_input and node_input.parts:
+        plan_text = "".join(p.text for p in node_input.parts if p.text)
+        
     if not ctx.resume_inputs or "user_approval" not in ctx.resume_inputs:
         plan_summary = (
-            f"### Generated Health & Fitness Plan\n\n"
-            f"**🍽️ Diet Plan:**\n{plan.diet_plan}\n\n"
-            f"**🛒 Grocery List:**\n{plan.grocery_list}\n\n"
-            f"**🍳 Meal Prep:**\n{plan.preparation_steps}\n\n"
-            f"**🏋️ Workout Schedule:**\n{plan.workout_schedule}\n\n"
-            f"**📝 Summary:** {plan.summary}\n\n"
+            f"### Proposed Health & Fitness Plan\n\n"
+            f"{plan_text}\n\n"
             f"Please review the plan. Do you approve? Enter 'yes' or specify feedback for changes."
         )
         yield Event(content=types.Content(role='model', parts=[types.Part.from_text(text=plan_summary)]))
@@ -262,25 +265,20 @@ async def human_approval(ctx: Context, node_input: dict) -> AsyncGenerator[Event
 
     user_resp = ctx.resume_inputs["user_approval"].strip()
     if user_resp.lower() == "yes":
-        yield Event(output=node_input, route="approve", state={"is_approved": True})
+        yield Event(output=plan_text, route="approve", state={"is_approved": True})
     else:
         yield Event(output=user_resp, route="revise", state={"feedback": user_resp})
 
 
-def final_output(ctx: Context, node_input: dict) -> Event:
+def final_output(ctx: Context, node_input: str) -> Event:
     # Check if the flow is from security failure or approved plan
     if not ctx.state.get("security_passed", True):
         # Already output in security_event, just return it
         return Event(output="Request Blocked")
         
-    plan = OrchestratorOutput(**node_input)
     final_text = (
         f"🎉 **Your Customized Diet & Fitness Plan is Ready and Approved!**\n\n"
-        f"### 🍽️ Diet Plan\n{plan.diet_plan}\n\n"
-        f"### 🛒 Grocery List\n{plan.grocery_list}\n\n"
-        f"### 🍳 Preparation Steps\n{plan.preparation_steps}\n\n"
-        f"### 🏋️ Workout Schedule\n{plan.workout_schedule}\n\n"
-        f"💪 *{plan.summary}*"
+        f"{node_input}"
     )
     yield Event(content=types.Content(role='model', parts=[types.Part.from_text(text=final_text)]))
     yield Event(output=node_input)
