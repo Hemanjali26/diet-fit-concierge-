@@ -94,7 +94,6 @@ You must also compile a consolidated grocery list for all ingredients needed, an
 Make sure the diet is healthy, balanced, and matches the user's goals (e.g. weight loss, muscle gain, low carb, etc.).
 You have access to MCP tools to calculate macros based on the calorie targets, and lookup nutrition details of typical foods. Use these tools whenever appropriate to ensure accuracy!""",
     tools=[mcp_toolset],
-    output_schema=DietPlanOutput,
     description="Generates a customized full-day diet plan, grocery list, and meal preparation instructions.",
 )
 
@@ -106,7 +105,6 @@ Your job is to design a tailored workout schedule for the user based on their fi
 Include specific exercises, sets, reps, durations, and rest times.
 You have access to an MCP tool to calculate the user's BMI and TDEE (maintenance calories) to ensure your workout recommendation is mathematically aligned with their weight goals. Use this tool!""",
     tools=[mcp_toolset],
-    output_schema=WorkoutPlanOutput,
     description="Designs a personalized workout schedule based on user fitness goals and constraints.",
 )
 
