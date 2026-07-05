@@ -67,22 +67,13 @@ class DietFitState(BaseModel):
     is_approved: bool = False
     security_passed: bool = True
     audit_log: list[dict] = []
-    plan: dict | None = None
+    run_workout_next: bool = False
 
-class DietPlanOutput(BaseModel):
-    diet_plan: str = Field(description="Full day diet plan (breakfast, lunch, dinner, snacks)")
-    grocery_list: str = Field(description="Consolidated grocery list of all ingredients needed for the day")
-    preparation_steps: str = Field(description="Step-by-step preparation and cooking instructions for the meals")
-
-class WorkoutPlanOutput(BaseModel):
-    workout_schedule: str = Field(description="Tailored workout schedule for the user including exercises, sets, reps, and durations")
-
-class OrchestratorOutput(BaseModel):
-    diet_plan: str = Field(description="Full day diet plan (breakfast, lunch, dinner, snacks)")
-    grocery_list: str = Field(description="Consolidated grocery list of all ingredients needed")
-    preparation_steps: str = Field(description="Step-by-step preparation and cooking instructions for the meals")
-    workout_schedule: str = Field(description="Tailored workout schedule for the user")
-    summary: str = Field(description="A brief encouraging summary of the day's routine")
+async def init_agent_state(callback_context: CallbackContext) -> None:
+    if "user_query" not in callback_context.state:
+        callback_context.state["user_query"] = ""
+    if "feedback" not in callback_context.state:
+        callback_context.state["feedback"] = ""
 
 # --- SUB-AGENTS ---
 diet_agent = LlmAgent(
@@ -90,11 +81,16 @@ diet_agent = LlmAgent(
     model=gemini_model,
     instruction="""You are a professional Nutritionist and Dietitian.
 Your job is to generate a comprehensive full-day diet plan (breakfast, lunch, dinner, snacks) based on the user's requirements.
+
+Original Request: {user_query}
+User Feedback (if any): {feedback}
+
 You must also compile a consolidated grocery list for all ingredients needed, and provide step-by-step preparation/cooking instructions.
 Make sure the diet is healthy, balanced, and matches the user's goals (e.g. weight loss, muscle gain, low carb, etc.).
 You have access to MCP tools to calculate macros based on the calorie targets, and lookup nutrition details of typical foods. Use these tools whenever appropriate to ensure accuracy!""",
     tools=[mcp_toolset],
     description="Generates a customized full-day diet plan, grocery list, and meal preparation instructions.",
+    before_agent_callback=init_agent_state,
 )
 
 workout_agent = LlmAgent(
@@ -102,54 +98,15 @@ workout_agent = LlmAgent(
     model=gemini_model,
     instruction="""You are a certified Personal Trainer and Fitness Coach.
 Your job is to design a tailored workout schedule for the user based on their fitness goals, experience level, and preferences.
+
+Original Request: {user_query}
+User Feedback (if any): {feedback}
+
 Include specific exercises, sets, reps, durations, and rest times.
 You have access to an MCP tool to calculate the user's BMI and TDEE (maintenance calories) to ensure your workout recommendation is mathematically aligned with their weight goals. Use this tool!""",
     tools=[mcp_toolset],
     description="Designs a personalized workout schedule based on user fitness goals and constraints.",
-)
-
-async def init_orchestrator_state(callback_context: CallbackContext) -> None:
-    if "user_query" not in callback_context.state:
-        callback_context.state["user_query"] = ""
-    if "feedback" not in callback_context.state:
-        callback_context.state["feedback"] = ""
-
-# --- ORCHESTRATOR AGENT ---
-orchestrator_agent = LlmAgent(
-    name="orchestrator_agent",
-    model=gemini_model,
-    instruction="""You are the master health and fitness coordinator.
-Your goal is to coordinate with the diet_agent and workout_agent to create a complete, personalized daily routine for the user.
-
-Original User Request: {user_query}
-Previous Feedback (if any): {feedback}
-
-If there is previous feedback, make sure you address it in the updated plan.
-
-Analyze the user's request first.
-
-If the user requests ONLY a diet plan,
-call ONLY the diet_agent.
-
-If the user requests ONLY a workout plan,
-call ONLY the workout_agent.
-
-If the user requests both,
-call both agents.
-
-Do not call an agent unless its output is required.
-
-Once you have gathered the outputs from both sub-agents, combine and present them as a beautiful, cohesive, and comprehensive health and fitness plan in Markdown format, containing:
-1. Diet Plan (breakfast, lunch, dinner, snacks)
-2. Consolidated Grocery List
-3. Meal Prep Instructions
-4. Workout Schedule
-5. Summary
-
-Make sure you do not invent the plans yourself; always delegate to the respective agents using your tools.""",
-    tools=[AgentTool(diet_agent), AgentTool(workout_agent)],
-    output_key="diet_plan",
-    before_agent_callback=init_orchestrator_state,
+    before_agent_callback=init_agent_state,
 )
 
 # --- WORKFLOW FUNCTIONS ---
@@ -292,13 +249,59 @@ def final_output(ctx: Context, node_input: str) -> Event:
 
 # --- WORKFLOW GRAPH CONFIGURATION ---
 
+def request_router(ctx: Context, node_input: str) -> Event:
+    ctx.state["user_query"] = node_input
+    text = node_input.lower()
+    
+    # Determine user intent
+    wants_diet = any(w in text for w in ["diet", "food", "eat", "meal", "calorie", "protein", "nutrition", "grocery", "prep"]) or not ("workout" in text or "exercise" in text or "gym" in text or "train" in text)
+    wants_workout = any(w in text for w in ["workout", "exercise", "gym", "train", "schedule", "fitness", "active", "tdee", "bmi"])
+    
+    if wants_diet and wants_workout:
+        return Event(output=node_input, route="both", state={"run_workout_next": True, "diet_plan": "", "workout_plan": ""})
+    elif wants_workout:
+        return Event(output=node_input, route="workout", state={"run_workout_next": False, "diet_plan": "", "workout_plan": ""})
+    else:
+        return Event(output=node_input, route="diet", state={"run_workout_next": False, "diet_plan": "", "workout_plan": ""})
+
+
+def after_diet_router(ctx: Context, node_input: str) -> Event:
+    ctx.state["diet_plan"] = node_input
+    if ctx.state.get("run_workout_next", False):
+        return Event(output=ctx.state["user_query"], route="run_workout")
+    else:
+        return Event(output=node_input, route="approve_flow")
+
+
+def after_workout_router(ctx: Context, node_input: str) -> Event:
+    ctx.state["workout_plan"] = node_input
+    diet = ctx.state.get("diet_plan", "")
+    workout = ctx.state.get("workout_plan", "")
+    
+    plan_text = ""
+    if diet:
+        plan_text += f"## 🍽️ Diet and Nutrition Plan\n\n{diet}\n\n"
+    if workout:
+        plan_text += f"## 🏋️ Workout and Fitness Schedule\n\n{workout}"
+        
+    return Event(output=plan_text.strip())
+
+
 root_agent = Workflow(
     name="diet_fit_concierge_workflow",
     edges=[
         (START, security_checkpoint),
-        (security_checkpoint, {"pass": orchestrator_agent, "fail": security_event}),
-        (orchestrator_agent, human_approval),
-        (human_approval, {"revise": orchestrator_agent, "approve": final_output}),
+        (security_checkpoint, {"pass": request_router, "fail": security_event}),
+        
+        (request_router, {"diet": diet_agent, "workout": workout_agent, "both": diet_agent}),
+        
+        (diet_agent, after_diet_router),
+        (after_diet_router, {"run_workout": workout_agent, "approve_flow": human_approval}),
+        
+        (workout_agent, after_workout_router),
+        (after_workout_router, human_approval),
+        
+        (human_approval, {"approve": final_output, "revise": request_router}),
         (security_event, final_output),
     ],
     state_schema=DietFitState,
