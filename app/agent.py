@@ -126,8 +126,18 @@ Previous Feedback (if any): {feedback}
 
 If there is previous feedback, make sure you address it in the updated plan.
 
-First, call the 'diet_agent' tool to get the full-day diet plan, grocery list, and meal preparation steps.
-Second, call the 'workout_agent' tool to get the workout schedule.
+Analyze the user's request first.
+
+If the user requests ONLY a diet plan,
+call ONLY the diet_agent.
+
+If the user requests ONLY a workout plan,
+call ONLY the workout_agent.
+
+If the user requests both,
+call both agents.
+
+Do not call an agent unless its output is required.
 
 Once you have gathered the outputs from both sub-agents, combine and present them as a beautiful, cohesive, and comprehensive health and fitness plan in Markdown format, containing:
 1. Diet Plan (breakfast, lunch, dinner, snacks)
