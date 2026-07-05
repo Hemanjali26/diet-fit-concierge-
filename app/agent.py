@@ -65,6 +65,7 @@ class DietFitState(BaseModel):
     preparation_steps: str = ""
     feedback: str = ""
     is_approved: bool = False
+    is_approved_already_notified: bool = False
     security_passed: bool = True
     audit_log: list[dict] = []
     run_workout_next: bool = False
@@ -239,6 +240,13 @@ def final_output(ctx: Context, node_input: str) -> Event:
         # Already output in security_event, just return it
         return Event(output="Request Blocked")
         
+    if ctx.state.get("is_approved_already_notified", False):
+        msg = "Your plan is already approved and saved! If you want to start a new consultation, please click **New Session** at the top."
+        yield Event(content=types.Content(role='model', parts=[types.Part.from_text(text=msg)]))
+        yield Event(output=msg)
+        return
+
+    ctx.state["is_approved_already_notified"] = True
     final_text = (
         f"🎉 **Your Customized Diet & Fitness Plan is Ready and Approved!**\n\n"
         f"{node_input}"
@@ -250,6 +258,17 @@ def final_output(ctx: Context, node_input: str) -> Event:
 # --- WORKFLOW GRAPH CONFIGURATION ---
 
 def request_router(ctx: Context, node_input: str) -> Event:
+    # If this is a duplicate run after approval has already happened
+    if ctx.state.get("is_approved", False):
+        diet = ctx.state.get("diet_plan", "")
+        workout = ctx.state.get("workout_plan", "")
+        plan_text = ""
+        if diet:
+            plan_text += f"## 🍽️ Diet and Nutrition Plan\n\n{diet}\n\n"
+        if workout:
+            plan_text += f"## 🏋️ Workout and Fitness Schedule\n\n{workout}"
+        return Event(output=plan_text.strip(), route="approved")
+
     ctx.state["user_query"] = node_input
     text = node_input.lower()
     
@@ -293,7 +312,7 @@ root_agent = Workflow(
         (START, security_checkpoint),
         (security_checkpoint, {"pass": request_router, "fail": security_event}),
         
-        (request_router, {"run_diet": diet_agent, "workout": workout_agent}),
+        (request_router, {"run_diet": diet_agent, "workout": workout_agent, "approved": final_output}),
         
         (diet_agent, after_diet_router),
         (after_diet_router, {"run_workout": workout_agent, "approve_flow": human_approval}),
