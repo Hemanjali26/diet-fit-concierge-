@@ -258,11 +258,11 @@ def request_router(ctx: Context, node_input: str) -> Event:
     wants_workout = any(w in text for w in ["workout", "exercise", "gym", "train", "schedule", "fitness", "active", "tdee", "bmi"])
     
     if wants_diet and wants_workout:
-        return Event(output=node_input, route="both", state={"run_workout_next": True, "diet_plan": "", "workout_plan": ""})
+        return Event(output=node_input, route="run_diet", state={"run_workout_next": True, "diet_plan": "", "workout_plan": ""})
     elif wants_workout:
         return Event(output=node_input, route="workout", state={"run_workout_next": False, "diet_plan": "", "workout_plan": ""})
     else:
-        return Event(output=node_input, route="diet", state={"run_workout_next": False, "diet_plan": "", "workout_plan": ""})
+        return Event(output=node_input, route="run_diet", state={"run_workout_next": False, "diet_plan": "", "workout_plan": ""})
 
 
 def after_diet_router(ctx: Context, node_input: str) -> Event:
@@ -293,7 +293,7 @@ root_agent = Workflow(
         (START, security_checkpoint),
         (security_checkpoint, {"pass": request_router, "fail": security_event}),
         
-        (request_router, {"diet": diet_agent, "workout": workout_agent, "both": diet_agent}),
+        (request_router, {"run_diet": diet_agent, "workout": workout_agent}),
         
         (diet_agent, after_diet_router),
         (after_diet_router, {"run_workout": workout_agent, "approve_flow": human_approval}),
