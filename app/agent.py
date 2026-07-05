@@ -40,7 +40,7 @@ from app.config import config
 # --- MODELS ---
 gemini_model = Gemini(
     model=config.model,
-    retry_options=types.HttpRetryOptions(attempts=3),
+    retry_options=types.HttpRetryOptions(attempts=1),
 )
 
 # --- MCP SERVER CONFIGURATION ---
