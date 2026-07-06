@@ -40,8 +40,12 @@ from app.config import config
 # --- MODELS ---
 gemini_model = Gemini(
     model=config.model,
-    retry_options=types.HttpRetryOptions(attempts=1),
+    retry_options=types.HttpRetryOptions(
+        attempts=8,
+        initial_delay=2.0,
+    ),
 )
+
 
 # --- MCP SERVER CONFIGURATION ---
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
